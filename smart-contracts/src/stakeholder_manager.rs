@@ -13,6 +13,7 @@ pub struct Stakeholder {
 }
 
 #[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StakeholderRole {
     Creator,
     Producer,
@@ -29,6 +30,14 @@ pub struct StakeholderRights {
     pub can_remove_ip_assets: bool,
 }
 
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    NextStakeholderId,
+    Stakeholders,
+    Rights(Address),
+}
+
 #[contract]
 pub struct StakeholderManagerContract;
 
@@ -36,12 +45,11 @@ pub struct StakeholderManagerContract;
 impl StakeholderManagerContract {
     /// Initialize the contract
     pub fn initialize(env: Env, admin: Address) {
-        if env.storage().instance().has(&String::from_slice(&"admin".into_bytes())) {
+        if env.storage().instance().has(&DataKey::Admin) {
             panic!("Contract already initialized");
         }
-        
-        env.storage().instance().set(&String::from_slice(&"admin".into_bytes()), &admin);
-        env.storage().instance().set(&String::from_slice(&"next_stakeholder_id".into_bytes()), &1u64);
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::NextStakeholderId, &1u64);
     }
 
     /// Register a new stakeholder
@@ -52,41 +60,41 @@ impl StakeholderManagerContract {
         wallet_address: Address,
         role: StakeholderRole,
     ) -> String {
-        let next_id: u64 = env.storage().instance().get(&String::from_slice(&"next_stakeholder_id".into_bytes())).unwrap_or(1u64);
-        let stakeholder_id = String::from_slice(&("stakeholder_".into_bytes() + next_id.to_string().into_bytes()));
-        
+        let next_id: u64 = env.storage().instance()
+            .get(&DataKey::NextStakeholderId)
+            .unwrap_or(1u64);
+
+        let stakeholder_id = String::from_str(&env, &format!("stakeholder_{}", next_id));
+
         let stakeholder = Stakeholder {
             id: stakeholder_id.clone(),
             name,
             email,
-            wallet_address,
-            role,
+            wallet_address: wallet_address.clone(),
+            role: role.clone(),
             created_at: env.ledger().timestamp(),
             updated_at: env.ledger().timestamp(),
         };
 
-        // Store the stakeholder
-        let stakeholders_key = String::from_slice(&"stakeholders".into_bytes());
-        let mut stakeholders: Map<String, Stakeholder> = env.storage().instance().get(&stakeholders_key).unwrap_or(Map::new(&env));
+        let mut stakeholders: Map<Address, Stakeholder> = env.storage().instance()
+            .get(&DataKey::Stakeholders)
+            .unwrap_or_else(|| Map::new(&env));
         stakeholders.set(wallet_address.clone(), stakeholder);
-        env.storage().instance().set(&stakeholders_key, &stakeholders);
+        env.storage().instance().set(&DataKey::Stakeholders, &stakeholders);
 
-        // Set default rights based on role
         let rights = Self::get_default_rights_for_role(role);
-        let rights_key = String::from_slice(&("rights_".into_bytes() + wallet_address.into_bytes()));
-        env.storage().instance().set(&rights_key, &rights);
+        env.storage().instance().set(&DataKey::Rights(wallet_address), &rights);
 
-        // Increment next stakeholder ID
-        env.storage().instance().set(&String::from_slice(&"next_stakeholder_id".into_bytes()), &(next_id + 1));
+        env.storage().instance().set(&DataKey::NextStakeholderId, &(next_id + 1));
 
         stakeholder_id
     }
 
     /// Get stakeholder by wallet address
     pub fn get_stakeholder(env: Env, wallet_address: Address) -> Stakeholder {
-        let stakeholders_key = String::from_slice(&"stakeholders".into_bytes());
-        let stakeholders: Map<String, Stakeholder> = env.storage().instance().get(&stakeholders_key).unwrap_or(Map::new(&env));
-        
+        let stakeholders: Map<Address, Stakeholder> = env.storage().instance()
+            .get(&DataKey::Stakeholders)
+            .unwrap_or_else(|| Map::new(&env));
         stakeholders.get(wallet_address).unwrap_or_else(|| panic!("Stakeholder not found"))
     }
 
@@ -98,11 +106,14 @@ impl StakeholderManagerContract {
         email: Option<String>,
         role: Option<StakeholderRole>,
     ) {
-        let stakeholders_key = String::from_slice(&"stakeholders".into_bytes());
-        let mut stakeholders: Map<String, Stakeholder> = env.storage().instance().get(&stakeholders_key).unwrap_or(Map::new(&env));
-        
-        let mut stakeholder = stakeholders.get(wallet_address.clone()).unwrap_or_else(|| panic!("Stakeholder not found"));
-        
+        let mut stakeholders: Map<Address, Stakeholder> = env.storage().instance()
+            .get(&DataKey::Stakeholders)
+            .unwrap_or_else(|| Map::new(&env));
+
+        let mut stakeholder = stakeholders
+            .get(wallet_address.clone())
+            .unwrap_or_else(|| panic!("Stakeholder not found"));
+
         if let Some(new_name) = name {
             stakeholder.name = new_name;
         }
@@ -110,71 +121,60 @@ impl StakeholderManagerContract {
             stakeholder.email = new_email;
         }
         if let Some(new_role) = role {
+            let rights = Self::get_default_rights_for_role(new_role.clone());
+            env.storage().instance().set(&DataKey::Rights(wallet_address.clone()), &rights);
             stakeholder.role = new_role;
-            // Update default rights for new role
-            let rights = Self::get_default_rights_for_role(new_role);
-            let rights_key = String::from_slice(&("rights_".into_bytes() + wallet_address.into_bytes()));
-            env.storage().instance().set(&rights_key, &rights);
         }
-        
+
         stakeholder.updated_at = env.ledger().timestamp();
         stakeholders.set(wallet_address, stakeholder);
-        env.storage().instance().set(&stakeholders_key, &stakeholders);
+        env.storage().instance().set(&DataKey::Stakeholders, &stakeholders);
     }
 
     /// Get stakeholder rights
     pub fn get_stakeholder_rights(env: Env, wallet_address: Address) -> StakeholderRights {
-        let rights_key = String::from_slice(&("rights_".into_bytes() + wallet_address.into_bytes()));
-        env.storage().instance().get(&rights_key).unwrap_or_else(|| panic!("Stakeholder rights not found"))
+        env.storage().instance()
+            .get(&DataKey::Rights(wallet_address))
+            .unwrap_or_else(|| panic!("Stakeholder rights not found"))
     }
 
     /// Update stakeholder rights
-    pub fn update_stakeholder_rights(
-        env: Env,
-        wallet_address: Address,
-        rights: StakeholderRights,
-    ) {
-        let rights_key = String::from_slice(&("rights_".into_bytes() + wallet_address.into_bytes()));
-        env.storage().instance().set(&rights_key, &rights);
+    pub fn update_stakeholder_rights(env: Env, wallet_address: Address, rights: StakeholderRights) {
+        env.storage().instance().set(&DataKey::Rights(wallet_address), &rights);
     }
 
     /// Get all stakeholders
     pub fn get_all_stakeholders(env: Env) -> Vec<Stakeholder> {
-        let stakeholders_key = String::from_slice(&"stakeholders".into_bytes());
-        let stakeholders: Map<String, Stakeholder> = env.storage().instance().get(&stakeholders_key).unwrap_or(Map::new(&env));
-        
-        let mut stakeholder_list = Vec::new(&env);
+        let stakeholders: Map<Address, Stakeholder> = env.storage().instance()
+            .get(&DataKey::Stakeholders)
+            .unwrap_or_else(|| Map::new(&env));
+
+        let mut list = Vec::new(&env);
         for (_, stakeholder) in stakeholders.iter() {
-            stakeholder_list.push_back(stakeholder);
+            list.push_back(stakeholder);
         }
-        
-        stakeholder_list
+        list
     }
 
     /// Get stakeholders by role
     pub fn get_stakeholders_by_role(env: Env, role: StakeholderRole) -> Vec<Stakeholder> {
-        let stakeholders_key = String::from_slice(&"stakeholders".into_bytes());
-        let stakeholders: Map<String, Stakeholder> = env.storage().instance().get(&stakeholders_key).unwrap_or(Map::new(&env));
-        
-        let mut role_stakeholders = Vec::new(&env);
+        let stakeholders: Map<Address, Stakeholder> = env.storage().instance()
+            .get(&DataKey::Stakeholders)
+            .unwrap_or_else(|| Map::new(&env));
+
+        let mut result = Vec::new(&env);
         for (_, stakeholder) in stakeholders.iter() {
             if stakeholder.role == role {
-                role_stakeholders.push_back(stakeholder);
+                result.push_back(stakeholder);
             }
         }
-        
-        role_stakeholders
+        result
     }
 
-    /// Check if stakeholder has specific permission
-    pub fn has_permission(
-        env: Env,
-        wallet_address: Address,
-        permission: String,
-    ) -> bool {
+    /// Check if stakeholder has a specific permission
+    pub fn has_permission(env: Env, wallet_address: Address, permission: String) -> bool {
         let rights = Self::get_stakeholder_rights(env, wallet_address);
-        
-        match permission.as_str() {
+        match permission.to_string().as_str() {
             "view_reports" => rights.can_view_reports,
             "manage_royalties" => rights.can_manage_royalties,
             "add_ip_assets" => rights.can_add_ip_assets,
@@ -183,7 +183,17 @@ impl StakeholderManagerContract {
         }
     }
 
-    /// Get default rights for a role
+    /// Remove a stakeholder
+    pub fn remove_stakeholder(env: Env, wallet_address: Address) {
+        let mut stakeholders: Map<Address, Stakeholder> = env.storage().instance()
+            .get(&DataKey::Stakeholders)
+            .unwrap_or_else(|| Map::new(&env));
+
+        stakeholders.remove(wallet_address.clone());
+        env.storage().instance().set(&DataKey::Stakeholders, &stakeholders);
+        env.storage().instance().remove(&DataKey::Rights(wallet_address));
+    }
+
     fn get_default_rights_for_role(role: StakeholderRole) -> StakeholderRights {
         match role {
             StakeholderRole::Creator => StakeholderRights {
@@ -192,21 +202,15 @@ impl StakeholderManagerContract {
                 can_add_ip_assets: true,
                 can_remove_ip_assets: true,
             },
-            StakeholderRole::Producer => StakeholderRights {
-                can_view_reports: true,
-                can_manage_royalties: false,
-                can_add_ip_assets: false,
-                can_remove_ip_assets: false,
-            },
-            StakeholderRole::Distributor => StakeholderRights {
-                can_view_reports: true,
-                can_manage_royalties: false,
-                can_add_ip_assets: false,
-                can_remove_ip_assets: false,
-            },
             StakeholderRole::Publisher => StakeholderRights {
                 can_view_reports: true,
                 can_manage_royalties: true,
+                can_add_ip_assets: false,
+                can_remove_ip_assets: false,
+            },
+            StakeholderRole::Producer | StakeholderRole::Distributor => StakeholderRights {
+                can_view_reports: true,
+                can_manage_royalties: false,
                 can_add_ip_assets: false,
                 can_remove_ip_assets: false,
             },
@@ -217,18 +221,5 @@ impl StakeholderManagerContract {
                 can_remove_ip_assets: false,
             },
         }
-    }
-
-    /// Remove a stakeholder
-    pub fn remove_stakeholder(env: Env, wallet_address: Address) {
-        let stakeholders_key = String::from_slice(&"stakeholders".into_bytes());
-        let mut stakeholders: Map<String, Stakeholder> = env.storage().instance().get(&stakeholders_key).unwrap_or(Map::new(&env));
-        
-        stakeholders.remove(wallet_address.clone());
-        env.storage().instance().set(&stakeholders_key, &stakeholders);
-
-        // Remove rights
-        let rights_key = String::from_slice(&("rights_".into_bytes() + wallet_address.into_bytes()));
-        env.storage().instance().remove(&rights_key);
     }
 }

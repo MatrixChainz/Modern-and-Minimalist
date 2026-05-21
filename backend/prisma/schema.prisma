@@ -11,12 +11,13 @@ datasource db {
 }
 
 model Creator {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  walletAddress String  @unique
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  walletAddress String   @unique
+  passwordHash  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   ipAssets IPAsset[]
 
@@ -71,7 +72,8 @@ model UsageRecord {
   metadata   Json?
   createdAt  DateTime   @default(now())
 
-  ipAsset IPAsset @relation(fields: [ipAssetId], references: [id])
+  ipAsset        IPAsset          @relation(fields: [ipAssetId], references: [id])
+  royaltyPayments RoyaltyPayment[]
 
   @@map("usage_records")
 }
@@ -80,16 +82,18 @@ model RoyaltyPayment {
   id              String           @id @default(cuid())
   stakeholderId   String
   ipAssetId       String
+  usageRecordId   String?
   amount          Float
   currency        String
-  transactionHash String           @unique
+  transactionHash String?          @unique
   status          PaymentStatus    @default(PENDING)
   createdAt       DateTime         @default(now())
   processedAt     DateTime?
   metadata        Json?
 
-  stakeholder Stakeholder @relation(fields: [stakeholderId], references: [id])
-  ipAsset     IPAsset     @relation(fields: [ipAssetId], references: [id])
+  stakeholder Stakeholder  @relation(fields: [stakeholderId], references: [id])
+  ipAsset     IPAsset      @relation(fields: [ipAssetId], references: [id])
+  usageRecord UsageRecord? @relation(fields: [usageRecordId], references: [id])
 
   @@map("royalty_payments")
 }

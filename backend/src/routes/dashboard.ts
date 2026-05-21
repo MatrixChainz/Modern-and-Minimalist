@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import { DashboardController } from '../controllers/dashboardController'
+import { authenticate } from '../middleware/auth'
 
 const router = Router()
-const dashboardController = new DashboardController()
+const controller = new DashboardController()
 
-router.get('/stats', dashboardController.getStats)
+router.get('/stats', authenticate, controller.getStats.bind(controller))
 
 export { router as dashboardRoutes }

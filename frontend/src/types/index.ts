@@ -14,7 +14,8 @@ export interface IPAsset {
   creatorId: string;
   tokenId: string;
   contractAddress: string;
-  type: 'music' | 'video' | 'art' | 'text' | 'software';
+  type: 'MUSIC' | 'VIDEO' | 'ART' | 'TEXT' | 'SOFTWARE';
+  metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,7 +25,7 @@ export interface Stakeholder {
   name: string;
   email: string;
   walletAddress: string;
-  role: 'creator' | 'producer' | 'distributor' | 'publisher' | 'other';
+  role: 'CREATOR' | 'PRODUCER' | 'DISTRIBUTOR' | 'PUBLISHER' | 'OTHER';
   royaltyPercentage: number;
   ipAssetId: string;
   createdAt: Date;
@@ -35,11 +36,11 @@ export interface UsageRecord {
   id: string;
   ipAssetId: string;
   platform: string;
-  usageType: 'stream' | 'download' | 'license' | 'sale';
+  usageType: 'STREAM' | 'DOWNLOAD' | 'LICENSE' | 'SALE';
   amount: number;
   currency: string;
   timestamp: Date;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface RoyaltyPayment {
@@ -49,7 +50,7 @@ export interface RoyaltyPayment {
   amount: number;
   currency: string;
   transactionHash: string;
-  status: 'pending' | 'completed' | 'failed';
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
   createdAt: Date;
   processedAt?: Date;
 }
@@ -59,4 +60,14 @@ export interface DashboardStats {
   totalRoyalties: number;
   activeStakeholders: number;
   monthlyGrowth: number;
+}
+
+export interface ActivityItem {
+  id: string;
+  action: string;
+  asset: string;
+  stakeholder: string;
+  amount: number;
+  currency: string;
+  time: string;
 }

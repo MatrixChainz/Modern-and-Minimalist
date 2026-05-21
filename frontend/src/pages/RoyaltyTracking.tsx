@@ -1,35 +1,39 @@
-import { useState } from 'react'
-import { TrendingUp, DollarSign, Calendar, Filter } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { TrendingUp, DollarSign, Calendar } from 'lucide-react'
 import { RoyaltyPayment } from '../types'
+import { royalties as royaltiesApi } from '../api'
+
+type StatusFilter = '' | 'PENDING' | 'COMPLETED' | 'FAILED'
+
+const statusStyle: Record<string, string> = {
+  COMPLETED: 'bg-green-100 text-green-800',
+  PENDING: 'bg-yellow-100 text-yellow-800',
+  FAILED: 'bg-red-100 text-red-800',
+}
 
 const RoyaltyTracking = () => {
-  const [payments] = useState<RoyaltyPayment[]>([
-    {
-      id: '1',
-      stakeholderId: 'stakeholder-1',
-      ipAssetId: 'ip-1',
-      amount: 1250.50,
-      currency: 'USD',
-      transactionHash: '0xabc123...',
-      status: 'completed',
-      createdAt: new Date('2024-01-15'),
-      processedAt: new Date('2024-01-15'),
-    },
-    {
-      id: '2',
-      stakeholderId: 'stakeholder-2',
-      ipAssetId: 'ip-2',
-      amount: 875.25,
-      currency: 'USD',
-      transactionHash: '0xdef456...',
-      status: 'pending',
-      createdAt: new Date('2024-01-16'),
-    },
-  ])
+  const [payments, setPayments] = useState<RoyaltyPayment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
 
-  const totalRoyalties = payments.reduce((sum, payment) => sum + payment.amount, 0)
-  const completedPayments = payments.filter(p => p.status === 'completed').length
-  const pendingPayments = payments.filter(p => p.status === 'pending').length
+  useEffect(() => {
+    royaltiesApi.list()
+      .then(setPayments)
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const filtered = useMemo(() =>
+    statusFilter ? payments.filter((p) => p.status === statusFilter) : payments,
+    [payments, statusFilter],
+  )
+
+  const totalRoyalties = filtered.reduce((sum, p) => sum + p.amount, 0)
+  const completedCount = filtered.filter((p) => p.status === 'COMPLETED').length
+  const pendingCount = filtered.filter((p) => p.status === 'PENDING').length
+
+  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
 
   return (
     <div className="space-y-6">
@@ -37,6 +41,12 @@ const RoyaltyTracking = () => {
         <h1 className="text-3xl font-bold text-gray-900">Royalty Tracking</h1>
         <p className="mt-2 text-gray-600">Monitor and track royalty payments in real-time</p>
       </div>
+
+      {error && (
+        <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" role="alert">
+          {error}
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
@@ -51,7 +61,6 @@ const RoyaltyTracking = () => {
             </div>
           </div>
         </div>
-        
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -59,11 +68,10 @@ const RoyaltyTracking = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Completed</p>
-              <p className="text-2xl font-bold text-gray-900">{completedPayments}</p>
+              <p className="text-2xl font-bold text-gray-900">{completedCount}</p>
             </div>
           </div>
         </div>
-        
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
             <div className="p-2 bg-yellow-100 rounded-lg">
@@ -71,23 +79,25 @@ const RoyaltyTracking = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-gray-900">{pendingPayments}</p>
+              <p className="text-2xl font-bold text-gray-900">{pendingCount}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filter */}
       <div className="flex items-center space-x-4">
-        <button className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-          <Filter className="w-4 h-4 mr-2" />
-          Filter
-        </button>
-        <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-          <option>All Status</option>
-          <option>Completed</option>
-          <option>Pending</option>
-          <option>Failed</option>
+        <label htmlFor="status-filter" className="text-sm font-medium text-gray-700">Status:</label>
+        <select
+          id="status-filter"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">All Status</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="PENDING">Pending</option>
+          <option value="FAILED">Failed</option>
         </select>
       </div>
 
@@ -97,61 +107,40 @@ const RoyaltyTracking = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stakeholder
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  IP Asset
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Transaction
-                </th>
+                {['Date', 'Stakeholder', 'IP Asset', 'Amount', 'Status', 'Transaction'].map((h) => (
+                  <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {payments.map((payment) => (
+              {filtered.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">No payments found.</td></tr>
+              ) : filtered.map((payment) => (
                 <tr key={payment.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {payment.createdAt.toLocaleDateString()}
+                    {new Date(payment.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {payment.stakeholderId}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {payment.ipAssetId}
-                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.stakeholderId}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.ipAssetId}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ${payment.amount.toFixed(2)}
+                    ${payment.amount.toFixed(2)} {payment.currency}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      payment.status === 'completed' 
-                        ? 'bg-green-100 text-green-800'
-                        : payment.status === 'pending'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusStyle[payment.status] ?? 'bg-gray-100 text-gray-800'}`}>
                       {payment.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <a 
-                      href={`https://stellar.expert/explorer/testnet/tx/${payment.transactionHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      {payment.transactionHash.slice(0, 10)}...
-                    </a>
+                    {payment.transactionHash ? (
+                      <a
+                        href={`https://stellar.expert/explorer/testnet/tx/${payment.transactionHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        {payment.transactionHash.slice(0, 10)}...
+                      </a>
+                    ) : '—'}
                   </td>
                 </tr>
               ))}

@@ -28,7 +28,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="fixed inset-y-0 left-0 flex flex-col w-64 bg-white">
           <div className="flex items-center justify-between h-16 px-4 border-b">
             <h1 className="text-xl font-semibold text-gray-900">Royalty Platform</h1>
-            <button onClick={() => setSidebarOpen(false)}>
+            <button onClick={() => setSidebarOpen(false)} aria-label="Close navigation menu">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -89,6 +89,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden"
+            aria-label="Open navigation menu"
           >
             <Menu className="w-6 h-6" />
           </button>

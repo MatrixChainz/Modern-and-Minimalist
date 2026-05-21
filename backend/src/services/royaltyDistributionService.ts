@@ -1,31 +1,37 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../config/database'
 import { StellarService } from './stellarService'
 import { Queue } from 'bull'
-import { createClient } from 'redis'
+
+interface DistributionStats {
+  total: number
+  completed: number
+  failed: number
+  pending: number
+  totalDistributed: number
+  successRate: number
+}
+
+interface StakeholderEarnings {
+  totalEarnings: number
+  paymentsCount: number
+  earningsByCurrency: Record<string, number>
+  recentPayments: unknown[]
+}
 
 export class RoyaltyDistributionService {
-  private prisma: PrismaClient
   private stellarService: StellarService
   private distributionQueue: Queue
-  private redisClient: any
 
   constructor() {
-    this.prisma = new PrismaClient()
     this.stellarService = new StellarService()
-    
-    // Initialize Redis for queue
-    this.redisClient = createClient()
-    this.redisClient.connect()
-    
-    // Initialize Bull queue for royalty distribution
+
     this.distributionQueue = new Queue('royalty distribution', {
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
       },
     })
 
-    // Process queue
     this.distributionQueue.process('distribute-royalties', 5, this.processRoyaltyDistribution.bind(this))
   }
 
@@ -35,89 +41,56 @@ export class RoyaltyDistributionService {
       timestamp: Date.now(),
     }, {
       attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 2000,
-      },
+      backoff: { type: 'exponential', delay: 2000 },
     })
   }
 
-  private async processRoyaltyDistribution(job: any): Promise<void> {
+  private async processRoyaltyDistribution(job: { data: { usageRecordId: string } }): Promise<void> {
     const { usageRecordId } = job.data
-    
-    try {
-      console.log(`Processing royalty distribution for usage record: ${usageRecordId}`)
-      
-      // Get usage record
-      const usageRecord = await this.prisma.usageRecord.findUnique({
-        where: { id: usageRecordId },
-        include: {
-          ipAsset: {
-            include: {
-              stakeholders: true,
-            },
-          },
-        },
-      })
 
-      if (!usageRecord) {
-        throw new Error(`Usage record not found: ${usageRecordId}`)
-      }
+    const usageRecord = await prisma.usageRecord.findUnique({
+      where: { id: usageRecordId },
+      include: { ipAsset: { include: { stakeholders: true } } },
+    })
 
-      // Calculate royalty amounts
-      const royaltyCalculations = await this.calculateRoyalties(usageRecord)
-      
-      // Create royalty payments
-      const paymentIds = await this.createRoyaltyPayments(usageRecordId, royaltyCalculations)
-      
-      // Process payments on Stellar
-      for (const paymentId of paymentIds) {
-        await this.processPayment(paymentId)
-      }
+    if (!usageRecord) {
+      throw new Error(`Usage record not found: ${usageRecordId}`)
+    }
 
-      console.log(`Successfully processed royalty distribution for usage record: ${usageRecordId}`)
-    } catch (error) {
-      console.error(`Failed to process royalty distribution for usage record ${usageRecordId}:`, error)
-      throw error
+    const royaltyCalculations = this.calculateRoyalties(usageRecord)
+    const paymentIds = await this.createRoyaltyPayments(usageRecord.ipAssetId, usageRecordId, royaltyCalculations)
+
+    for (const paymentId of paymentIds) {
+      await this.processPayment(paymentId)
     }
   }
 
-  private async calculateRoyalties(usageRecord: any): Promise<Array<{
-    stakeholderId: string
+  private calculateRoyalties(usageRecord: {
     amount: number
-    percentage: number
-  }>> {
-    const calculations = []
-    
-    for (const stakeholder of usageRecord.ipAsset.stakeholders) {
-      const royaltyAmount = (usageRecord.amount * stakeholder.royaltyPercentage) / 100
-      calculations.push({
-        stakeholderId: stakeholder.id,
-        amount: royaltyAmount,
-        percentage: stakeholder.royaltyPercentage,
-      })
-    }
-
-    return calculations
+    ipAsset: { stakeholders: Array<{ id: string; royaltyPercentage: number }> }
+  }): Array<{ stakeholderId: string; amount: number; percentage: number }> {
+    return usageRecord.ipAsset.stakeholders.map((stakeholder) => ({
+      stakeholderId: stakeholder.id,
+      amount: (usageRecord.amount * stakeholder.royaltyPercentage) / 100,
+      percentage: stakeholder.royaltyPercentage,
+    }))
   }
 
   private async createRoyaltyPayments(
+    ipAssetId: string,
     usageRecordId: string,
-    calculations: Array<{
-      stakeholderId: string
-      amount: number
-      percentage: number
-    }>
+    calculations: Array<{ stakeholderId: string; amount: number; percentage: number }>,
   ): Promise<string[]> {
-    const paymentIds = []
+    const paymentIds: string[] = []
 
     for (const calculation of calculations) {
-      const payment = await this.prisma.royaltyPayment.create({
+      const payment = await prisma.royaltyPayment.create({
         data: {
           stakeholderId: calculation.stakeholderId,
-          ipAssetId: usageRecordId,
+          ipAssetId,
+          usageRecordId,
           amount: calculation.amount,
-          currency: 'USD', // Default to USD, can be made configurable
+          currency: 'USD',
           status: 'PENDING',
           metadata: {
             percentage: calculation.percentage,
@@ -125,7 +98,6 @@ export class RoyaltyDistributionService {
           },
         },
       })
-
       paymentIds.push(payment.id)
     }
 
@@ -133,174 +105,126 @@ export class RoyaltyDistributionService {
   }
 
   private async processPayment(paymentId: string): Promise<void> {
+    const payment = await prisma.royaltyPayment.findUnique({
+      where: { id: paymentId },
+      include: { stakeholder: true },
+    })
+
+    if (!payment) {
+      throw new Error(`Payment not found: ${paymentId}`)
+    }
+
+    const fromAccount = process.env.STELLAR_DISTRIBUTION_ACCOUNT
+    if (!fromAccount) {
+      throw new Error('Stellar distribution account not configured')
+    }
+
     try {
-      // Get payment details
-      const payment = await this.prisma.royaltyPayment.findUnique({
-        where: { id: paymentId },
-        include: {
-          stakeholder: true,
-        },
-      })
-
-      if (!payment) {
-        throw new Error(`Payment not found: ${paymentId}`)
-      }
-
-      // Convert amount to Stellar format (smallest unit)
       const stellarAmount = this.convertToStellarAmount(payment.amount, payment.currency)
-      
-      // Send payment on Stellar
-      const fromAccount = process.env.STELLAR_DISTRIBUTION_ACCOUNT
-      const toAddress = payment.stakeholder.walletAddress
-      
-      if (!fromAccount) {
-        throw new Error('Stellar distribution account not configured')
-      }
-
       const transactionHash = await this.stellarService.sendPayment(
         fromAccount,
-        toAddress,
-        stellarAmount
+        payment.stakeholder.walletAddress,
+        stellarAmount,
       )
 
-      // Update payment status
-      await this.prisma.royaltyPayment.update({
+      await prisma.royaltyPayment.update({
         where: { id: paymentId },
-        data: {
-          status: 'COMPLETED',
-          transactionHash,
-          processedAt: new Date(),
-        },
+        data: { status: 'COMPLETED', transactionHash, processedAt: new Date() },
       })
-
-      console.log(`Successfully processed payment ${paymentId} with transaction ${transactionHash}`)
-    } catch (error) {
-      // Mark payment as failed
-      await this.prisma.royaltyPayment.update({
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      await prisma.royaltyPayment.update({
         where: { id: paymentId },
         data: {
           status: 'FAILED',
-          metadata: {
-            error: error.message,
-            failedAt: Date.now(),
-          },
+          metadata: { error: message, failedAt: Date.now() },
         },
       })
-
-      throw error
+      throw err
     }
   }
 
   private convertToStellarAmount(amount: number, currency: string): string {
-    // Convert to smallest unit based on currency
     switch (currency) {
       case 'USD':
-        // Assuming 7 decimal places for USD (like USDC)
-        return (amount * 1000000).toString()
       case 'EUR':
-        // Assuming 7 decimal places for EUR (like EURC)
-        return (amount * 1000000).toString()
+        return (amount * 1_000_000).toFixed(0)
       case 'XLM':
-        // XLM has 7 decimal places
-        return (amount * 10000000).toString()
+        return (amount * 10_000_000).toFixed(0)
       default:
-        // Default to 2 decimal places
-        return (amount * 100).toString()
+        return (amount * 100).toFixed(0)
     }
   }
 
   async batchDistributeRoyalties(usageRecordIds: string[]): Promise<void> {
-    // Process multiple usage records in batch
-    for (const usageRecordId of usageRecordIds) {
-      await this.queueRoyaltyDistribution(usageRecordId)
+    for (const id of usageRecordIds) {
+      await this.queueRoyaltyDistribution(id)
     }
   }
 
   async retryFailedPayments(): Promise<void> {
-    // Get failed payments
-    const failedPayments = await this.prisma.royaltyPayment.findMany({
-      where: {
-        status: 'FAILED',
-      },
-      take: 100, // Limit to prevent overwhelming the system
+    const failedPayments = await prisma.royaltyPayment.findMany({
+      where: { status: 'FAILED' },
+      take: 100,
     })
 
     for (const payment of failedPayments) {
-      // Reset to pending and retry
-      await this.prisma.royaltyPayment.update({
+      const meta = (payment.metadata as Record<string, unknown>) ?? {}
+      await prisma.royaltyPayment.update({
         where: { id: payment.id },
         data: {
           status: 'PENDING',
           metadata: {
-            ...payment.metadata,
-            retryCount: (payment.metadata?.retryCount || 0) + 1,
+            ...meta,
+            retryCount: ((meta.retryCount as number) || 0) + 1,
             lastRetryAt: Date.now(),
           },
         },
       })
-
       await this.processPayment(payment.id)
     }
   }
 
-  async getDistributionStats(timeRange?: { start: Date; end: Date }): Promise<any> {
-    const whereClause: any = {}
-    
-    if (timeRange) {
-      whereClause.createdAt = {
-        gte: timeRange.start,
-        lte: timeRange.end,
-      }
-    }
+  async getDistributionStats(timeRange?: { start: Date; end: Date }): Promise<DistributionStats> {
+    const where = timeRange
+      ? { createdAt: { gte: timeRange.start, lte: timeRange.end } }
+      : {}
 
-    const [total, completed, failed, pending] = await Promise.all([
-      this.prisma.royaltyPayment.count({ where: whereClause }),
-      this.prisma.royaltyPayment.count({ 
-        where: { ...whereClause, status: 'COMPLETED' } 
-      }),
-      this.prisma.royaltyPayment.count({ 
-        where: { ...whereClause, status: 'FAILED' } 
-      }),
-      this.prisma.royaltyPayment.count({ 
-        where: { ...whereClause, status: 'PENDING' } 
-      }),
+    const [total, completed, failed, pending, totalAmount] = await Promise.all([
+      prisma.royaltyPayment.count({ where }),
+      prisma.royaltyPayment.count({ where: { ...where, status: 'COMPLETED' } }),
+      prisma.royaltyPayment.count({ where: { ...where, status: 'FAILED' } }),
+      prisma.royaltyPayment.count({ where: { ...where, status: 'PENDING' } }),
+      prisma.royaltyPayment.aggregate({ where: { ...where, status: 'COMPLETED' }, _sum: { amount: true } }),
     ])
-
-    const totalAmount = await this.prisma.royaltyPayment.aggregate({
-      where: { ...whereClause, status: 'COMPLETED' },
-      _sum: { amount: true },
-    })
 
     return {
       total,
       completed,
       failed,
       pending,
-      totalDistributed: totalAmount._sum.amount || 0,
+      totalDistributed: totalAmount._sum.amount ?? 0,
       successRate: total > 0 ? (completed / total) * 100 : 0,
     }
   }
 
-  async getStakeholderEarnings(stakeholderId: string, timeRange?: { start: Date; end: Date }): Promise<any> {
-    const whereClause: any = { stakeholderId }
-    
-    if (timeRange) {
-      whereClause.createdAt = {
-        gte: timeRange.start,
-        lte: timeRange.end,
-      }
+  async getStakeholderEarnings(stakeholderId: string, timeRange?: { start: Date; end: Date }): Promise<StakeholderEarnings> {
+    const where = {
+      stakeholderId,
+      status: 'COMPLETED' as const,
+      ...(timeRange ? { createdAt: { gte: timeRange.start, lte: timeRange.end } } : {}),
     }
 
-    const payments = await this.prisma.royaltyPayment.findMany({
-      where: { ...whereClause, status: 'COMPLETED' },
+    const payments = await prisma.royaltyPayment.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
     })
 
-    const totalEarnings = payments.reduce((sum, payment) => sum + payment.amount, 0)
-    const earningsByCurrency = payments.reduce((acc, payment) => {
-      acc[payment.currency] = (acc[payment.currency] || 0) + payment.amount
+    const totalEarnings = payments.reduce((sum, p) => sum + p.amount, 0)
+    const earningsByCurrency = payments.reduce<Record<string, number>>((acc, p) => {
+      acc[p.currency] = (acc[p.currency] ?? 0) + p.amount
       return acc
-    }, {} as Record<string, number>)
+    }, {})
 
     return {
       totalEarnings,
@@ -311,21 +235,13 @@ export class RoyaltyDistributionService {
   }
 
   async schedulePeriodicDistribution(): Promise<void> {
-    // This would be called by a cron job or scheduler
-    // Process any pending usage records that haven't been distributed
-    
-    const pendingUsageRecords = await this.prisma.usageRecord.findMany({
-      where: {
-        // Find usage records that don't have corresponding payments
-        royaltyPayments: {
-          none: {},
-        },
-      },
-      take: 100, // Limit to prevent overwhelming
+    const pendingUsageRecords = await prisma.usageRecord.findMany({
+      where: { royaltyPayments: { none: {} } },
+      take: 100,
     })
 
-    for (const usageRecord of pendingUsageRecords) {
-      await this.queueRoyaltyDistribution(usageRecord.id)
+    for (const record of pendingUsageRecords) {
+      await this.queueRoyaltyDistribution(record.id)
     }
 
     console.log(`Scheduled distribution for ${pendingUsageRecords.length} usage records`)
@@ -333,38 +249,27 @@ export class RoyaltyDistributionService {
 
   async validateRoyaltyCalculations(usageRecordId: string): Promise<boolean> {
     try {
-      const usageRecord = await this.prisma.usageRecord.findUnique({
+      const usageRecord = await prisma.usageRecord.findUnique({
         where: { id: usageRecordId },
         include: {
-          ipAsset: {
-            include: {
-              stakeholders: true,
-            },
-          },
+          ipAsset: { include: { stakeholders: true } },
           royaltyPayments: true,
         },
       })
 
-      if (!usageRecord) {
-        return false
-      }
+      if (!usageRecord) return false
 
-      // Calculate expected total royalty distribution
       const expectedTotal = usageRecord.ipAsset.stakeholders.reduce(
-        (sum, stakeholder) => sum + (usageRecord.amount * stakeholder.royaltyPercentage) / 100,
-        0
+        (sum, s) => sum + (usageRecord.amount * s.royaltyPercentage) / 100,
+        0,
       )
 
-      // Calculate actual total from completed payments
       const actualTotal = usageRecord.royaltyPayments
-        .filter(payment => payment.status === 'COMPLETED')
-        .reduce((sum, payment) => sum + payment.amount, 0)
+        .filter((p) => p.status === 'COMPLETED')
+        .reduce((sum, p) => sum + p.amount, 0)
 
-      // Allow for small rounding differences
-      const tolerance = 0.01 // 1 cent tolerance
-      return Math.abs(expectedTotal - actualTotal) <= tolerance
-    } catch (error) {
-      console.error('Error validating royalty calculations:', error)
+      return Math.abs(expectedTotal - actualTotal) <= 0.01
+    } catch {
       return false
     }
   }

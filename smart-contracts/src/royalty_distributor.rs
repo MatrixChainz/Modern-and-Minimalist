@@ -1,5 +1,4 @@
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec, Map, U256};
-use crate::ip_token::RoyaltyShare;
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec, Map, U256, Symbol, vec as soroban_vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -25,14 +24,24 @@ pub struct RoyaltyPayment {
     pub transaction_hash: String,
     pub status: PaymentStatus,
     pub created_at: u64,
-    pub processed_at: Option<u64>,
+    pub processed_at: u64, // 0 means not yet processed
 }
 
 #[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PaymentStatus {
     Pending,
     Completed,
     Failed,
+}
+
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    NextPaymentId,
+    NextUsageId,
+    UsageRecords,
+    RoyaltyPayments,
 }
 
 #[contract]
@@ -42,12 +51,12 @@ pub struct RoyaltyDistributorContract;
 impl RoyaltyDistributorContract {
     /// Initialize the contract
     pub fn initialize(env: Env, admin: Address) {
-        if env.storage().instance().has(&String::from_slice(&"admin".into_bytes())) {
+        if env.storage().instance().has(&DataKey::Admin) {
             panic!("Contract already initialized");
         }
-        
-        env.storage().instance().set(&String::from_slice(&"admin".into_bytes()), &admin);
-        env.storage().instance().set(&String::from_slice(&"next_payment_id".into_bytes()), &1u64);
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::NextPaymentId, &1u64);
+        env.storage().instance().set(&DataKey::NextUsageId, &1u64);
     }
 
     /// Record usage for an IP asset
@@ -60,9 +69,12 @@ impl RoyaltyDistributorContract {
         currency: String,
         metadata: Map<String, String>,
     ) -> String {
-        let next_id: u64 = env.storage().instance().get(&String::from_slice(&"next_usage_id".into_bytes())).unwrap_or(1u64);
-        let usage_id = String::from_slice(&("usage_".into_bytes() + next_id.to_string().into_bytes()));
-        
+        let next_id: u64 = env.storage().instance()
+            .get(&DataKey::NextUsageId)
+            .unwrap_or(1u64);
+
+        let usage_id = String::from_str(&env, &format!("usage_{}", next_id));
+
         let usage_record = UsageRecord {
             id: usage_id.clone(),
             ip_token_id,
@@ -74,143 +86,148 @@ impl RoyaltyDistributorContract {
             metadata,
         };
 
-        // Store the usage record
-        let usage_key = String::from_slice(&"usage_records".into_bytes());
-        let mut usage_records: Map<String, UsageRecord> = env.storage().instance().get(&usage_key).unwrap_or(Map::new(&env));
+        let mut usage_records: Map<String, UsageRecord> = env.storage().instance()
+            .get(&DataKey::UsageRecords)
+            .unwrap_or_else(|| Map::new(&env));
         usage_records.set(usage_id.clone(), usage_record);
-        env.storage().instance().set(&usage_key, &usage_records);
-
-        // Increment next usage ID
-        env.storage().instance().set(&String::from_slice(&"next_usage_id".into_bytes()), &(next_id + 1));
+        env.storage().instance().set(&DataKey::UsageRecords, &usage_records);
+        env.storage().instance().set(&DataKey::NextUsageId, &(next_id + 1));
 
         usage_id
     }
 
-    /// Calculate and distribute royalties for a usage record
+    /// Calculate and distribute royalties for a usage record.
+    ///
+    /// `ip_token_contract` is the deployed address of the IPTokenContract.
+    /// The royalty shares are fetched via a cross-contract call using
+    /// `env.invoke_contract`, which is the correct Soroban SDK pattern.
     pub fn distribute_royalties(
         env: Env,
         usage_record_id: String,
         ip_token_contract: Address,
     ) -> Vec<String> {
-        // Get usage record
-        let usage_key = String::from_slice(&"usage_records".into_bytes());
-        let usage_records: Map<String, UsageRecord> = env.storage().instance().get(&usage_key).unwrap_or(Map::new(&env));
-        let usage_record = usage_records.get(usage_record_id.clone()).unwrap_or_else(|| panic!("Usage record not found"));
+        let usage_records: Map<String, UsageRecord> = env.storage().instance()
+            .get(&DataKey::UsageRecords)
+            .unwrap_or_else(|| Map::new(&env));
+        let usage_record = usage_records
+            .get(usage_record_id.clone())
+            .unwrap_or_else(|| panic!("Usage record not found"));
 
-        // Get royalty shares from IP token contract
-        let royalties_key = String::from_slice(&("royalties_".into_bytes() + usage_record.ip_token_id.clone().into_bytes()));
-        let client = ip_token_contract.require_client();
-        let royalty_shares: Map<Address, u32> = client.invoke_contract(
-            &String::from_slice(&"get_royalty_shares".into_bytes()),
-            (usage_record.ip_token_id.clone(),)
+        // Cross-contract call: get_royalty_shares(token_id) -> Map<Address, u32>
+        let royalty_shares: Map<Address, u32> = env.invoke_contract(
+            &ip_token_contract,
+            &Symbol::new(&env, "get_royalty_shares"),
+            soroban_vec![&env, usage_record.ip_token_id.clone()],
         );
 
         let mut payment_ids = Vec::new(&env);
-        
-        // Calculate and create royalty payments for each stakeholder
+
         for (stakeholder, percentage) in royalty_shares.iter() {
-            let royalty_amount = usage_record.amount * U256::from(percentage) / U256::from(10000u32);
-            
-            let next_payment_id: u64 = env.storage().instance().get(&String::from_slice(&"next_payment_id".into_bytes())).unwrap_or(1u64);
-            let payment_id = String::from_slice(&("payment_".into_bytes() + next_payment_id.to_string().into_bytes()));
-            
+            // Safe U256 arithmetic: multiply then divide by basis points (10000)
+            let basis = U256::from_u32(&env, 10000u32);
+            let pct = U256::from_u32(&env, percentage);
+            let royalty_amount = usage_record.amount.mul(&pct).div(&basis);
+
+            let next_payment_id: u64 = env.storage().instance()
+                .get(&DataKey::NextPaymentId)
+                .unwrap_or(1u64);
+            let payment_id = String::from_str(&env, &format!("payment_{}", next_payment_id));
+
             let payment = RoyaltyPayment {
                 id: payment_id.clone(),
                 usage_record_id: usage_record_id.clone(),
                 stakeholder: stakeholder.clone(),
                 amount: royalty_amount,
                 currency: usage_record.currency.clone(),
-                transaction_hash: String::from_str(""), // Will be set when payment is processed
+                transaction_hash: String::from_str(&env, ""),
                 status: PaymentStatus::Pending,
                 created_at: env.ledger().timestamp(),
-                processed_at: None,
+                processed_at: 0,
             };
 
-            // Store the payment
-            let payments_key = String::from_slice(&"royalty_payments".into_bytes());
-            let mut payments: Map<String, RoyaltyPayment> = env.storage().instance().get(&payments_key).unwrap_or(Map::new(&env));
+            let mut payments: Map<String, RoyaltyPayment> = env.storage().instance()
+                .get(&DataKey::RoyaltyPayments)
+                .unwrap_or_else(|| Map::new(&env));
             payments.set(payment_id.clone(), payment);
-            env.storage().instance().set(&payments_key, &payments);
+            env.storage().instance().set(&DataKey::RoyaltyPayments, &payments);
+            env.storage().instance().set(&DataKey::NextPaymentId, &(next_payment_id + 1));
 
             payment_ids.push_back(payment_id);
-
-            // Increment next payment ID
-            env.storage().instance().set(&String::from_slice(&"next_payment_id".into_bytes()), &(next_payment_id + 1));
         }
 
         payment_ids
     }
 
     /// Process a royalty payment (mark as completed)
-    pub fn process_payment(
-        env: Env,
-        payment_id: String,
-        transaction_hash: String,
-    ) {
-        let payments_key = String::from_slice(&"royalty_payments".into_bytes());
-        let mut payments: Map<String, RoyaltyPayment> = env.storage().instance().get(&payments_key).unwrap_or(Map::new(&env));
-        
-        let mut payment = payments.get(payment_id.clone()).unwrap_or_else(|| panic!("Payment not found"));
+    pub fn process_payment(env: Env, payment_id: String, transaction_hash: String) {
+        let mut payments: Map<String, RoyaltyPayment> = env.storage().instance()
+            .get(&DataKey::RoyaltyPayments)
+            .unwrap_or_else(|| Map::new(&env));
+
+        let mut payment = payments
+            .get(payment_id.clone())
+            .unwrap_or_else(|| panic!("Payment not found"));
         payment.status = PaymentStatus::Completed;
         payment.transaction_hash = transaction_hash;
-        payment.processed_at = Some(env.ledger().timestamp());
-        
+        payment.processed_at = env.ledger().timestamp();
+
         payments.set(payment_id, payment);
-        env.storage().instance().set(&payments_key, &payments);
+        env.storage().instance().set(&DataKey::RoyaltyPayments, &payments);
     }
 
     /// Get payment details
     pub fn get_payment(env: Env, payment_id: String) -> RoyaltyPayment {
-        let payments_key = String::from_slice(&"royalty_payments".into_bytes());
-        let payments: Map<String, RoyaltyPayment> = env.storage().instance().get(&payments_key).unwrap_or(Map::new(&env));
-        
+        let payments: Map<String, RoyaltyPayment> = env.storage().instance()
+            .get(&DataKey::RoyaltyPayments)
+            .unwrap_or_else(|| Map::new(&env));
         payments.get(payment_id).unwrap_or_else(|| panic!("Payment not found"))
     }
 
     /// Get all payments for a stakeholder
     pub fn get_stakeholder_payments(env: Env, stakeholder: Address) -> Vec<RoyaltyPayment> {
-        let payments_key = String::from_slice(&"royalty_payments".into_bytes());
-        let payments: Map<String, RoyaltyPayment> = env.storage().instance().get(&payments_key).unwrap_or(Map::new(&env));
-        
-        let mut stakeholder_payments = Vec::new(&env);
+        let payments: Map<String, RoyaltyPayment> = env.storage().instance()
+            .get(&DataKey::RoyaltyPayments)
+            .unwrap_or_else(|| Map::new(&env));
+
+        let mut result = Vec::new(&env);
         for (_, payment) in payments.iter() {
             if payment.stakeholder == stakeholder {
-                stakeholder_payments.push_back(payment);
+                result.push_back(payment);
             }
         }
-        
-        stakeholder_payments
+        result
     }
 
     /// Get all usage records for an IP asset
     pub fn get_ip_usage_records(env: Env, ip_token_id: String) -> Vec<UsageRecord> {
-        let usage_key = String::from_slice(&"usage_records".into_bytes());
-        let usage_records: Map<String, UsageRecord> = env.storage().instance().get(&usage_key).unwrap_or(Map::new(&env));
-        
-        let mut ip_usage_records = Vec::new(&env);
+        let usage_records: Map<String, UsageRecord> = env.storage().instance()
+            .get(&DataKey::UsageRecords)
+            .unwrap_or_else(|| Map::new(&env));
+
+        let mut result = Vec::new(&env);
         for (_, record) in usage_records.iter() {
             if record.ip_token_id == ip_token_id {
-                ip_usage_records.push_back(record);
+                result.push_back(record);
             }
         }
-        
-        ip_usage_records
+        result
     }
 
-    /// Get total royalties earned by a stakeholder
+    /// Get total royalties earned by a stakeholder for a given currency
     pub fn get_stakeholder_earnings(env: Env, stakeholder: Address, currency: String) -> U256 {
-        let payments_key = String::from_slice(&"royalty_payments".into_bytes());
-        let payments: Map<String, RoyaltyPayment> = env.storage().instance().get(&payments_key).unwrap_or(Map::new(&env));
-        
-        let mut total_earnings = U256::from(0u64);
+        let payments: Map<String, RoyaltyPayment> = env.storage().instance()
+            .get(&DataKey::RoyaltyPayments)
+            .unwrap_or_else(|| Map::new(&env));
+
+        let mut total = U256::from_u32(&env, 0u32);
         for (_, payment) in payments.iter() {
-            if payment.stakeholder == stakeholder 
-                && payment.currency == currency 
-                && payment.status == PaymentStatus::Completed {
-                total_earnings += payment.amount;
+            if payment.stakeholder == stakeholder
+                && payment.currency == currency
+                && payment.status == PaymentStatus::Completed
+            {
+                total = total.add(&payment.amount);
             }
         }
-        
-        total_earnings
+        total
     }
 }

@@ -1,42 +1,38 @@
-import { createClient } from 'redis'
+import { createClient, RedisClientType } from 'redis'
 
-let redisClient: any
+let redisClient: RedisClientType | null = null
 
-export const connectRedis = async () => {
-  try {
-    redisClient = createClient({
-      socket: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
-      },
-      password: process.env.REDIS_PASSWORD || undefined,
-    })
+export const connectRedis = async (): Promise<RedisClientType> => {
+  redisClient = createClient({
+    socket: {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    },
+    password: process.env.REDIS_PASSWORD || undefined,
+  }) as RedisClientType
 
-    redisClient.on('error', (err: any) => {
-      console.error('Redis Client Error:', err)
-    })
+  redisClient.on('error', (err: Error) => {
+    console.error('Redis Client Error:', err)
+  })
 
-    redisClient.on('connect', () => {
-      console.log('Redis Client Connected')
-    })
+  redisClient.on('connect', () => {
+    console.log('Redis Client Connected')
+  })
 
-    await redisClient.connect()
-    return redisClient
-  } catch (error) {
-    console.error('Failed to connect to Redis:', error)
-    throw error
-  }
+  await redisClient.connect()
+  return redisClient
 }
 
-export const getRedisClient = () => {
+export const getRedisClient = (): RedisClientType => {
   if (!redisClient) {
     throw new Error('Redis client not initialized. Call connectRedis() first.')
   }
   return redisClient
 }
 
-export const disconnectRedis = async () => {
+export const disconnectRedis = async (): Promise<void> => {
   if (redisClient) {
     await redisClient.disconnect()
+    redisClient = null
   }
 }
