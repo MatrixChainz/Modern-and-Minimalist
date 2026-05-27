@@ -103,6 +103,7 @@ const RoyaltyTracking = () => {
 
       {/* Payments Table */}
       <div className="bg-white rounded-lg shadow-sm border">
+        <div className="sm:hidden px-4 py-2 text-xs text-gray-500 bg-gray-50 border-b italic">Swipe horizontally to view full table</div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
