@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Plus, Search, MoreHorizontal } from 'lucide-react'
 import { IPAsset } from '../types'
 import { ipAssets as ipAssetsApi } from '../api'
+import toast from 'react-hot-toast'
 
 const TYPE_OPTIONS = ['MUSIC', 'VIDEO', 'ART', 'TEXT', 'SOFTWARE'] as const
 
@@ -18,7 +19,7 @@ const IPManagement = () => {
   useEffect(() => {
     ipAssetsApi.list()
       .then(setAssets)
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => toast.error(err.message))
       .finally(() => setLoading(false))
   }, [])
 
@@ -40,8 +41,9 @@ const IPManagement = () => {
       setAssets((prev) => [asset, ...prev])
       setShowForm(false)
       setForm({ title: '', description: '', tokenId: '', contractAddress: '', type: 'MUSIC' })
+      toast.success('Asset created successfully')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create asset')
+      toast.error(err instanceof Error ? err.message : 'Failed to create asset')
     } finally {
       setSubmitting(false)
     }
@@ -52,8 +54,9 @@ const IPManagement = () => {
     try {
       await ipAssetsApi.delete(id)
       setAssets((prev) => prev.filter((a) => a.id !== id))
+      toast.success('Asset deleted successfully')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete asset')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete asset')
     }
   }
 
@@ -75,11 +78,7 @@ const IPManagement = () => {
         </button>
       </div>
 
-      {error && (
-        <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" role="alert">
-          {error}
-        </div>
-      )}
+      
 
       {/* Add form */}
       {showForm && (
