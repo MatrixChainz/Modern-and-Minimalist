@@ -28,6 +28,7 @@ export interface Stakeholder {
   role: 'CREATOR' | 'PRODUCER' | 'DISTRIBUTOR' | 'PUBLISHER' | 'OTHER';
   royaltyPercentage: number;
   ipAssetId: string;
+  ipAsset?: { title: string };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +47,7 @@ export interface UsageRecord {
 export interface RoyaltyPayment {
   id: string;
   stakeholderId: string;
+  stakeholder?: { name: string };
   ipAssetId: string;
   amount: number;
   currency: string;
