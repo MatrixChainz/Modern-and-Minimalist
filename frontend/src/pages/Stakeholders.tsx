@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect, useMemo } from 'react'
 import { Plus, Search, MoreHorizontal, Mail, Wallet } from 'lucide-react'
 import { Stakeholder } from '../types'
@@ -62,7 +63,7 @@ const Stakeholders = () => {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
+  if (loading) return (<TableSkeleton columns={6} />)
 
   return (
     <div className="space-y-6">

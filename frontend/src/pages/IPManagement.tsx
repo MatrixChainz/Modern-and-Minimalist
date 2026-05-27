@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect, useMemo } from 'react'
 import { Plus, Search, MoreHorizontal } from 'lucide-react'
 import { IPAsset } from '../types'
@@ -57,7 +58,7 @@ const IPManagement = () => {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
+  if (loading) return (<TableSkeleton columns={6} />)
 
   return (
     <div className="space-y-6">
