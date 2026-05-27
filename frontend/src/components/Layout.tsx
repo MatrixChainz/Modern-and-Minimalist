@@ -19,6 +19,7 @@ const navigation = [
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
+  const { user, logout } = useAuthStore()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -96,6 +97,14 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           <div className="flex-1" />
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-500">Connected: Stellar Network</span>
+            {user && (
+              <div className="flex items-center space-x-4 ml-4 pl-4 border-l">
+                <span className="text-sm font-medium text-gray-700">{user.name}</span>
+                <button onClick={logout} className="p-2 rounded-md hover:bg-gray-100 text-gray-600" title="Logout">
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <main className="p-6">
