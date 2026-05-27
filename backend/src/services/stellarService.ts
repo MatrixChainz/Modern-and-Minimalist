@@ -1,3 +1,4 @@
+import { logger } from '../config/logger';
 import { Horizon, Networks, Asset, Operation, TransactionBuilder } from 'stellar-sdk'
 
 export class StellarService {
@@ -23,7 +24,7 @@ export class StellarService {
     }
     // Soroban contract invocation would go here
     const transactionHash = `usage_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-    console.log(`Recorded usage on Stellar: ${transactionHash}`)
+    logger.info(`Recorded usage on Stellar: ${transactionHash}`)
     return transactionHash
   }
 
@@ -37,7 +38,7 @@ export class StellarService {
       `payment_${Date.now()}_1`,
       `payment_${Date.now()}_2`,
     ]
-    console.log(`Distributed royalties: ${paymentIds.join(', ')}`)
+    logger.info(`Distributed royalties: ${paymentIds.join(', ')}`)
     return paymentIds
   }
 
@@ -54,7 +55,7 @@ export class StellarService {
       throw new Error('IP token contract address not configured')
     }
     const tokenId = `token_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-    console.log(`Created IP asset on Stellar: ${tokenId}`)
+    logger.info(`Created IP asset on Stellar: ${tokenId}`)
     return tokenId
   }
 
@@ -110,7 +111,7 @@ export class StellarService {
 
     // In production: sign with distribution account secret key and submit
     const transactionHash = `payment_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-    console.log(`Sent payment on Stellar: ${transactionHash}`)
+    logger.info(`Sent payment on Stellar: ${transactionHash}`)
     return transactionHash
   }
 }

@@ -1,3 +1,4 @@
+import { logger } from '../config/logger';
 import { prisma } from '../config/database'
 import { StellarService } from './stellarService'
 import { Queue } from 'bull'
@@ -244,7 +245,7 @@ export class RoyaltyDistributionService {
       await this.queueRoyaltyDistribution(record.id)
     }
 
-    console.log(`Scheduled distribution for ${pendingUsageRecords.length} usage records`)
+    logger.info(`Scheduled distribution for ${pendingUsageRecords.length} usage records`)
   }
 
   async validateRoyaltyCalculations(usageRecordId: string): Promise<boolean> {
