@@ -39,6 +39,16 @@ const Stakeholders = () => {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const currentTotal = stakeholders
+      .filter((s) => s.ipAssetId === form.ipAssetId)
+      .reduce((sum, s) => sum + s.royaltyPercentage, 0)
+    
+    if (currentTotal + form.royaltyPercentage > 100) {
+      setError(`Total royalty percentage for this asset cannot exceed 100%. Current total is ${currentTotal}%.`)
+      return
+    }
+
     setSubmitting(true)
     try {
       const stakeholder = await stakeholdersApi.create(form)
