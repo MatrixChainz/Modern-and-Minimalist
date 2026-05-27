@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react'
 import { TrendingUp, Package, Users, DollarSign } from 'lucide-react'
 import { DashboardStats, ActivityItem } from '../types'
-import { dashboard } from '../api'
+import { dashboard, usage as usageApi } from '../api'
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
+import { Doughnut } from 'react-chartjs-2'
+
+ChartJS.register(ArcElement, Tooltip, Legend)
 
 const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats>({
@@ -11,12 +15,13 @@ const Dashboard = () => {
     monthlyGrowth: 0,
   })
   const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [platformData, setPlatformData] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    dashboard.getStats()
-      .then((data) => {
+    Promise.all([dashboard.getStats(), usageApi.records()])
+      .then(([data, usageData]) => {
         setStats({
           totalIPAssets: data.totalIPAssets,
           totalRoyalties: data.totalRoyalties,
@@ -24,6 +29,12 @@ const Dashboard = () => {
           monthlyGrowth: data.monthlyGrowth,
         })
         setActivity((data.recentActivity as ActivityItem[]) ?? [])
+        
+        const platformCounts = usageData.reduce((acc, curr) => {
+          acc[curr.platform] = (acc[curr.platform] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        setPlatformData(platformCounts);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
@@ -78,6 +89,30 @@ const Dashboard = () => {
         })}
       </div>
 
+      {/* Charts & Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Platform Breakdown</h2>
+          {Object.keys(platformData).length === 0 ? (
+            <p className="text-sm text-gray-500">No platform data available.</p>
+          ) : (
+            <div className="h-64 flex items-center justify-center">
+              <Doughnut
+                data={{
+                  labels: Object.keys(platformData),
+                  datasets: [
+                    {
+                      data: Object.values(platformData),
+                      backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'],
+                    },
+                  ],
+                }}
+                options={{ maintainAspectRatio: false }}
+              />
+            </div>
+          )}
+        </div>
+
       {/* Recent Activity */}
       <div className="bg-white rounded-lg shadow-sm border">
         <div className="px-6 py-4 border-b">
@@ -102,6 +137,7 @@ const Dashboard = () => {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )
