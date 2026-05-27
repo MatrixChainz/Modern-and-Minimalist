@@ -231,3 +231,32 @@ impl RoyaltyDistributorContract {
         total
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::{Env, testutils::Address as _, U256};
+
+    #[test]
+    fn test_record_usage() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, RoyaltyDistributorContract);
+        let client = RoyaltyDistributorContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        let ip_token_id = String::from_str(&env, "ip1");
+        let platform = String::from_str(&env, "spotify");
+        let usage_type = String::from_str(&env, "STREAM");
+        let amount = U256::from_u32(&env, 100);
+        let currency = String::from_str(&env, "USD");
+        let metadata = Map::new(&env);
+
+        let usage_id = client.record_usage(&ip_token_id, &platform, &usage_type, &amount, &currency, &metadata);
+        
+        let records = client.get_ip_usage_records(&ip_token_id);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records.get(0).unwrap().id, usage_id);
+    }
+}
