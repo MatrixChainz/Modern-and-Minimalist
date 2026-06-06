@@ -3,6 +3,17 @@ import { Plus, Search, MoreHorizontal } from 'lucide-react'
 import { IPAsset } from '../types'
 import { ipAssets as ipAssetsApi } from '../api'
 
+const getTypeBadgeColors = (type: IPAsset['type']) => {
+  switch (type) {
+    case 'MUSIC': return 'bg-purple-100 text-purple-800';
+    case 'VIDEO': return 'bg-red-100 text-red-800';
+    case 'ART': return 'bg-yellow-100 text-yellow-800';
+    case 'TEXT': return 'bg-green-100 text-green-800';
+    case 'SOFTWARE': return 'bg-blue-100 text-blue-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+};
+
 const TYPE_OPTIONS = ['MUSIC', 'VIDEO', 'ART', 'TEXT', 'SOFTWARE'] as const
 
 const IPManagement = () => {
@@ -149,7 +160,7 @@ const IPManagement = () => {
                     <div className="text-sm text-gray-500">{asset.description}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">{asset.type}</span>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTypeBadgeColors(asset.type)}`}>{asset.type}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.tokenId}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
