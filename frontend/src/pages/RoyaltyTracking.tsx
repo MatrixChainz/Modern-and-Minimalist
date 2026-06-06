@@ -1,6 +1,6 @@
 import { StatsSkeleton, TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect, useMemo } from 'react'
-import { TrendingUp, DollarSign, Calendar } from 'lucide-react'
+import { TrendingUp, DollarSign, Calendar, Inbox } from 'lucide-react'
 import { RoyaltyPayment } from '../types'
 import { royalties as royaltiesApi } from '../api'
 import toast from 'react-hot-toast'
@@ -112,7 +112,7 @@ const RoyaltyTracking = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">No payments found.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8"><EmptyState icon={<Inbox className="w-8 h-8" />} title="No royalties found" description="There are no royalty payments matching your criteria." /></td></tr>
               ) : filtered.map((payment) => (
                 <tr key={payment.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

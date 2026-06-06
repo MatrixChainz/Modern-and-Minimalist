@@ -1,6 +1,6 @@
 import { TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Search, MoreHorizontal } from 'lucide-react'
+import { Plus, Search, MoreHorizontal, FileBox } from 'lucide-react'
 import { IPAsset } from '../types'
 import { ipAssets as ipAssetsApi } from '../api'
 import toast from 'react-hot-toast'
@@ -152,7 +152,7 @@ const IPManagement = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">No IP assets found.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8"><EmptyState icon={<FileBox className="w-8 h-8" />} title="No IP assets found" description="Get started by creating a new IP asset." action={<button onClick={() => setShowForm(true)} className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100">Add IP Asset</button>} /></td></tr>
               ) : filtered.map((asset) => (
                 <tr key={asset.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">

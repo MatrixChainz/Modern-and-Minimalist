@@ -1,6 +1,6 @@
 import { TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Search, MoreHorizontal, Mail, Wallet } from 'lucide-react'
+import { Plus, Search, MoreHorizontal, Mail, Wallet, UserPlus } from 'lucide-react'
 import { Stakeholder } from '../types'
 import { stakeholders as stakeholdersApi } from '../api'
 import toast from 'react-hot-toast'
@@ -125,7 +125,7 @@ const Stakeholders = () => {
 
       {/* Stakeholders Grid */}
       {filtered.length === 0 ? (
-        <p className="text-sm text-gray-500">No stakeholders found.</p>
+        <EmptyState icon={<UserPlus className="w-8 h-8" />} title="No stakeholders found" description="Get started by adding a stakeholder." action={<button onClick={() => setShowForm(true)} className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100">Add Stakeholder</button>} />
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((stakeholder) => (
