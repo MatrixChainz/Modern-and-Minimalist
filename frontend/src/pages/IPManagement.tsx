@@ -1,7 +1,20 @@
+import { TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Search, MoreHorizontal } from 'lucide-react'
+import { Plus, Search, MoreHorizontal, FileBox } from 'lucide-react'
 import { IPAsset } from '../types'
 import { ipAssets as ipAssetsApi } from '../api'
+import toast from 'react-hot-toast'
+
+const getTypeBadgeColors = (type: IPAsset['type']) => {
+  switch (type) {
+    case 'MUSIC': return 'bg-purple-100 text-purple-800';
+    case 'VIDEO': return 'bg-red-100 text-red-800';
+    case 'ART': return 'bg-yellow-100 text-yellow-800';
+    case 'TEXT': return 'bg-green-100 text-green-800';
+    case 'SOFTWARE': return 'bg-blue-100 text-blue-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+};
 
 const TYPE_OPTIONS = ['MUSIC', 'VIDEO', 'ART', 'TEXT', 'SOFTWARE'] as const
 
@@ -18,7 +31,7 @@ const IPManagement = () => {
   useEffect(() => {
     ipAssetsApi.list()
       .then(setAssets)
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => toast.error(err.message))
       .finally(() => setLoading(false))
   }, [])
 
@@ -40,8 +53,9 @@ const IPManagement = () => {
       setAssets((prev) => [asset, ...prev])
       setShowForm(false)
       setForm({ title: '', description: '', tokenId: '', contractAddress: '', type: 'MUSIC' })
+      toast.success('Asset created successfully')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create asset')
+      toast.error(err instanceof Error ? err.message : 'Failed to create asset')
     } finally {
       setSubmitting(false)
     }
@@ -52,12 +66,13 @@ const IPManagement = () => {
     try {
       await ipAssetsApi.delete(id)
       setAssets((prev) => prev.filter((a) => a.id !== id))
+      toast.success('Asset deleted successfully')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete asset')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete asset')
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
+  if (loading) return (<TableSkeleton columns={6} />)
 
   return (
     <div className="space-y-6">
@@ -75,11 +90,7 @@ const IPManagement = () => {
         </button>
       </div>
 
-      {error && (
-        <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" role="alert">
-          {error}
-        </div>
-      )}
+      
 
       {/* Add form */}
       {showForm && (
@@ -141,7 +152,7 @@ const IPManagement = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">No IP assets found.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8"><EmptyState icon={<FileBox className="w-8 h-8" />} title="No IP assets found" description="Get started by creating a new IP asset." action={<button onClick={() => setShowForm(true)} className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100">Add IP Asset</button>} /></td></tr>
               ) : filtered.map((asset) => (
                 <tr key={asset.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -149,7 +160,7 @@ const IPManagement = () => {
                     <div className="text-sm text-gray-500">{asset.description}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">{asset.type}</span>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTypeBadgeColors(asset.type)}`}>{asset.type}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.tokenId}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

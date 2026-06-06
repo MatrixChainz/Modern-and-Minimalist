@@ -9,6 +9,7 @@
     "build": "tsc",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate"
   },
