@@ -46,7 +46,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req: Requ
     const token = jwt.sign(
       { userId: creator.id, email: creator.email },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any }
     )
 
     res.status(201).json({ success: true, data: { creator, token } })
@@ -74,7 +74,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
     const token = jwt.sign(
       { userId: creator.id, email: creator.email },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any }
     )
 
     res.json({
