@@ -1,3 +1,4 @@
+import { StatsSkeleton, TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect, useMemo } from 'react'
 import { TrendingUp, DollarSign, Calendar } from 'lucide-react'
 import { RoyaltyPayment } from '../types'
@@ -34,7 +35,7 @@ const RoyaltyTracking = () => {
   const completedCount = filtered.filter((p) => p.status === 'COMPLETED').length
   const pendingCount = filtered.filter((p) => p.status === 'PENDING').length
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
+  if (loading) return (<><StatsSkeleton count={3} /><div className="mt-6"><TableSkeleton columns={6} /></div></>)
 
   return (
     <div className="space-y-6">

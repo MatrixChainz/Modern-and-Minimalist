@@ -1,3 +1,4 @@
+import { StatsSkeleton, TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect } from 'react'
 import { TrendingUp, Package, Users, DollarSign } from 'lucide-react'
 import { DashboardStats, ActivityItem } from '../types'
@@ -36,9 +37,7 @@ const Dashboard = () => {
     { title: 'Monthly Growth', value: `${stats.monthlyGrowth}%`, icon: TrendingUp, change: null, changeType: stats.monthlyGrowth >= 0 ? 'positive' : 'negative' as const },
   ]
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
-  }
+  if (loading) return (<><StatsSkeleton count={4} /><div className="mt-6"><TableSkeleton columns={4} /></div></>)
 
   return (
     <div className="space-y-6">
