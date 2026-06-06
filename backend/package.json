@@ -9,11 +9,13 @@
     "build": "tsc",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^4.15.0",
+    "@types/supertest": "^7.2.0",
     "bcryptjs": "^2.4.3",
     "bull": "^4.10.4",
     "compression": "^1.7.4",
@@ -29,8 +31,8 @@
     "prisma": "^4.15.0",
     "redis": "^4.6.7",
     "stellar-sdk": "^10.4.1",
-    "winston": "^3.9.0",
-    "xss": "^1.0.15"
+    "supertest": "^7.2.2",
+    "winston": "^3.9.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.2",

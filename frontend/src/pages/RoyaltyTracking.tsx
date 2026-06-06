@@ -1,7 +1,9 @@
+import { StatsSkeleton, TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect, useMemo } from 'react'
-import { TrendingUp, DollarSign, Calendar } from 'lucide-react'
+import { TrendingUp, DollarSign, Calendar, Inbox } from 'lucide-react'
 import { RoyaltyPayment } from '../types'
 import { royalties as royaltiesApi } from '../api'
+import toast from 'react-hot-toast'
 
 type StatusFilter = '' | 'PENDING' | 'COMPLETED' | 'FAILED'
 
@@ -20,7 +22,7 @@ const RoyaltyTracking = () => {
   useEffect(() => {
     royaltiesApi.list()
       .then(setPayments)
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => toast.error(err.message))
       .finally(() => setLoading(false))
   }, [])
 
@@ -33,7 +35,7 @@ const RoyaltyTracking = () => {
   const completedCount = filtered.filter((p) => p.status === 'COMPLETED').length
   const pendingCount = filtered.filter((p) => p.status === 'PENDING').length
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
+  if (loading) return (<><StatsSkeleton count={3} /><div className="mt-6"><TableSkeleton columns={6} /></div></>)
 
   return (
     <div className="space-y-6">
@@ -42,11 +44,7 @@ const RoyaltyTracking = () => {
         <p className="mt-2 text-gray-600">Monitor and track royalty payments in real-time</p>
       </div>
 
-      {error && (
-        <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" role="alert">
-          {error}
-        </div>
-      )}
+      
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
@@ -114,14 +112,14 @@ const RoyaltyTracking = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">No payments found.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8"><EmptyState icon={<Inbox className="w-8 h-8" />} title="No royalties found" description="There are no royalty payments matching your criteria." /></td></tr>
               ) : filtered.map((payment) => (
                 <tr key={payment.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(payment.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.stakeholderId}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.ipAssetId}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.stakeholder?.name || payment.stakeholderId}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.ipAsset?.title || payment.ipAssetId}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     ${payment.amount.toFixed(2)} {payment.currency}
                   </td>

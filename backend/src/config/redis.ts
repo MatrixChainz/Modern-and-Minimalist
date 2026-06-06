@@ -1,3 +1,4 @@
+import { logger } from '../config/logger';
 import { createClient, RedisClientType } from 'redis'
 
 let redisClient: RedisClientType | null = null
@@ -12,11 +13,11 @@ export const connectRedis = async (): Promise<RedisClientType> => {
   }) as RedisClientType
 
   redisClient.on('error', (err: Error) => {
-    console.error('Redis Client Error:', err)
+    logger.error('Redis Client Error:', err)
   })
 
   redisClient.on('connect', () => {
-    console.log('Redis Client Connected')
+    logger.info('Redis Client Connected')
   })
 
   await redisClient.connect()

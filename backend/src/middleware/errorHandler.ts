@@ -1,3 +1,4 @@
+import { logger } from '../config/logger';
 import { Request, Response, NextFunction } from 'express'
 
 export interface AppError extends Error {
@@ -7,7 +8,7 @@ export interface AppError extends Error {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const errorHandler = (err: AppError, req: Request, res: Response, _next: NextFunction) => {
-  console.error(err)
+  logger.error(err)
 
   let statusCode = err.statusCode ?? 500
   let message = 'Internal Server Error'
