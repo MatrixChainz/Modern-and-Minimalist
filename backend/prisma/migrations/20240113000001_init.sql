@@ -1,9 +1,22 @@
+-- CreateEnum
+CREATE TYPE "IPType" AS ENUM ('MUSIC', 'VIDEO', 'ART', 'TEXT', 'SOFTWARE');
+
+-- CreateEnum
+CREATE TYPE "StakeholderRole" AS ENUM ('CREATOR', 'PRODUCER', 'DISTRIBUTOR', 'PUBLISHER', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "UsageType" AS ENUM ('STREAM', 'DOWNLOAD', 'LICENSE', 'SALE');
+
+-- CreateEnum
+CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'COMPLETED', 'FAILED');
+
 -- CreateTable
 CREATE TABLE "creators" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "walletAddress" TEXT NOT NULL,
+    "passwordHash" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -18,7 +31,7 @@ CREATE TABLE "ip_assets" (
     "creatorId" TEXT NOT NULL,
     "tokenId" TEXT NOT NULL,
     "contractAddress" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
+    "type" "IPType" NOT NULL,
     "metadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -32,7 +45,7 @@ CREATE TABLE "stakeholders" (
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "walletAddress" TEXT NOT NULL,
-    "role" TEXT NOT NULL,
+    "role" "StakeholderRole" NOT NULL,
     "royaltyPercentage" DOUBLE PRECISION NOT NULL,
     "ipAssetId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -46,7 +59,7 @@ CREATE TABLE "usage_records" (
     "id" TEXT NOT NULL,
     "ipAssetId" TEXT NOT NULL,
     "platform" TEXT NOT NULL,
-    "usageType" TEXT NOT NULL,
+    "usageType" "UsageType" NOT NULL,
     "amount" DOUBLE PRECISION NOT NULL,
     "currency" TEXT NOT NULL,
     "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -61,10 +74,11 @@ CREATE TABLE "royalty_payments" (
     "id" TEXT NOT NULL,
     "stakeholderId" TEXT NOT NULL,
     "ipAssetId" TEXT NOT NULL,
+    "usageRecordId" TEXT,
     "amount" DOUBLE PRECISION NOT NULL,
     "currency" TEXT NOT NULL,
-    "transactionHash" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "transactionHash" TEXT,
+    "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "processedAt" TIMESTAMP(3),
     "metadata" JSONB,
@@ -117,3 +131,6 @@ ALTER TABLE "royalty_payments" ADD CONSTRAINT "royalty_payments_stakeholderId_fk
 
 -- AddForeignKey
 ALTER TABLE "royalty_payments" ADD CONSTRAINT "royalty_payments_ipAssetId_fkey" FOREIGN KEY ("ipAssetId") REFERENCES "ip_assets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "royalty_payments" ADD CONSTRAINT "royalty_payments_usageRecordId_fkey" FOREIGN KEY ("usageRecordId") REFERENCES "usage_records"("id") ON DELETE SET NULL ON UPDATE CASCADE;
