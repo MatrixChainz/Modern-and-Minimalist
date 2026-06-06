@@ -1,28 +1,24 @@
 import { Routes, Route } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import IPManagement from './pages/IPManagement'
+import IPAssetDetail from './pages/IPAssetDetail'
 import RoyaltyTracking from './pages/RoyaltyTracking'
 import Stakeholders from './pages/Stakeholders'
 import Layout from './components/Layout'
-import Login from './pages/Login'
-import Register from './pages/Register'
+import { Toaster } from 'react-hot-toast'
 
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="*" element={
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/ip-management" element={<IPManagement />} />
-            <Route path="/royalty-tracking" element={<RoyaltyTracking />} />
-            <Route path="/stakeholders" element={<Stakeholders />} />
-          </Routes>
-        </Layout>
-      } />
-    </Routes>
+    <Layout>
+      <Toaster position="top-right" />
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/ip-management" element={<IPManagement />} />
+        <Route path="/ip-management/:id" element={<IPAssetDetail />} />
+        <Route path="/royalty-tracking" element={<RoyaltyTracking />} />
+        <Route path="/stakeholders" element={<Stakeholders />} />
+      </Routes>
+    </Layout>
   )
 }
 
