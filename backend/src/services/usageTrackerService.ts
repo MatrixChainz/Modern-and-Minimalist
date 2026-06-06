@@ -49,7 +49,7 @@ export class UsageTrackerService {
         usageType: data.usageType as UsageType,
         amount: data.amount,
         currency: data.currency,
-        metadata: data.metadata ?? {},
+        metadata: (data.metadata ?? {}) as any,
       },
     })
 
@@ -60,7 +60,7 @@ export class UsageTrackerService {
         usageType: data.usageType,
         amount: data.amount,
         currency: data.currency,
-        metadata: data.metadata ?? {},
+        metadata: (data.metadata ?? {}) as any,
       })
     } catch (err) {
       console.error('Failed to record usage on blockchain:', err)
