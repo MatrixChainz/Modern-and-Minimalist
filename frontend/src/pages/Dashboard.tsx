@@ -1,7 +1,12 @@
+import { StatsSkeleton, TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect } from 'react'
 import { TrendingUp, Package, Users, DollarSign } from 'lucide-react'
 import { DashboardStats, ActivityItem } from '../types'
-import { dashboard } from '../api'
+import { dashboard, royalties as royaltiesApi } from '../api'
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js'
+import { Line } from 'react-chartjs-2'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats>({
@@ -11,12 +16,13 @@ const Dashboard = () => {
     monthlyGrowth: 0,
   })
   const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [earningsData, setEarningsData] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    dashboard.getStats()
-      .then((data) => {
+    Promise.all([dashboard.getStats(), royaltiesApi.list()])
+      .then(([data, royaltyData]) => {
         setStats({
           totalIPAssets: data.totalIPAssets,
           totalRoyalties: data.totalRoyalties,
@@ -24,8 +30,24 @@ const Dashboard = () => {
           monthlyGrowth: data.monthlyGrowth,
         })
         setActivity((data.recentActivity as ActivityItem[]) ?? [])
+        
+        const last30Days = [...Array(30)].map((_, i) => {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          return d.toISOString().split('T')[0];
+        }).reverse();
+        
+        const earnings = last30Days.reduce((acc, date) => ({ ...acc, [date]: 0 }), {} as Record<string, number>);
+        
+        royaltyData.forEach(r => {
+          const date = new Date(r.createdAt).toISOString().split('T')[0];
+          if (earnings[date] !== undefined) {
+            earnings[date] += r.amount;
+          }
+        });
+        setEarningsData(earnings);
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => toast.error(err.message))
       .finally(() => setLoading(false))
   }, [])
 
@@ -36,9 +58,7 @@ const Dashboard = () => {
     { title: 'Monthly Growth', value: `${stats.monthlyGrowth}%`, icon: TrendingUp, change: null, changeType: stats.monthlyGrowth >= 0 ? 'positive' : 'negative' as const },
   ]
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
-  }
+  if (loading) return (<><StatsSkeleton count={4} /><div className="mt-6"><TableSkeleton columns={4} /></div></>)
 
   return (
     <div className="space-y-6">
@@ -47,11 +67,7 @@ const Dashboard = () => {
         <p className="mt-2 text-gray-600">Overview of your royalty distribution platform</p>
       </div>
 
-      {error && (
-        <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" role="alert">
-          {error}
-        </div>
-      )}
+      
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -78,6 +94,30 @@ const Dashboard = () => {
         })}
       </div>
 
+      {/* Charts & Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Daily Earnings (Last 30 Days)</h2>
+          <div className="h-64 flex items-center justify-center">
+            <Line
+              data={{
+                labels: Object.keys(earningsData).map(d => d.slice(5)),
+                datasets: [
+                  {
+                    label: 'Earnings ($)',
+                    data: Object.values(earningsData),
+                    borderColor: '#3B82F6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                  },
+                ],
+              }}
+              options={{ maintainAspectRatio: false }}
+            />
+          </div>
+        </div>
+
       {/* Recent Activity */}
       <div className="bg-white rounded-lg shadow-sm border">
         <div className="px-6 py-4 border-b">
@@ -102,6 +142,7 @@ const Dashboard = () => {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

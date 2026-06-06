@@ -1,7 +1,9 @@
+import { TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Search, MoreHorizontal, Mail, Wallet } from 'lucide-react'
+import { Plus, Search, MoreHorizontal, Mail, Wallet, UserPlus } from 'lucide-react'
 import { Stakeholder } from '../types'
 import { stakeholders as stakeholdersApi } from '../api'
+import toast from 'react-hot-toast'
 
 const ROLE_OPTIONS = ['CREATOR', 'PRODUCER', 'DISTRIBUTOR', 'PUBLISHER', 'OTHER'] as const
 
@@ -25,7 +27,7 @@ const Stakeholders = () => {
   useEffect(() => {
     stakeholdersApi.list()
       .then(setStakeholders)
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => toast.error(err.message))
       .finally(() => setLoading(false))
   }, [])
 
@@ -44,9 +46,10 @@ const Stakeholders = () => {
       const stakeholder = await stakeholdersApi.create(form)
       setStakeholders((prev) => [stakeholder, ...prev])
       setShowForm(false)
+      toast.success('Stakeholder created successfully')
       setForm({ name: '', email: '', walletAddress: '', role: 'CREATOR', royaltyPercentage: 0, ipAssetId: '' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add stakeholder')
+      toast.error(err instanceof Error ? err.message : 'Failed to add stakeholder')
     } finally {
       setSubmitting(false)
     }
@@ -57,12 +60,13 @@ const Stakeholders = () => {
     try {
       await stakeholdersApi.delete(id)
       setStakeholders((prev) => prev.filter((s) => s.id !== id))
+      toast.success('Stakeholder deleted successfully')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove stakeholder')
+      toast.error(err instanceof Error ? err.message : 'Failed to remove stakeholder')
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
+  if (loading) return (<TableSkeleton columns={6} />)
 
   return (
     <div className="space-y-6">
@@ -80,11 +84,7 @@ const Stakeholders = () => {
         </button>
       </div>
 
-      {error && (
-        <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" role="alert">
-          {error}
-        </div>
-      )}
+      
 
       {/* Add form */}
       {showForm && (
@@ -125,7 +125,7 @@ const Stakeholders = () => {
 
       {/* Stakeholders Grid */}
       {filtered.length === 0 ? (
-        <p className="text-sm text-gray-500">No stakeholders found.</p>
+        <EmptyState icon={<UserPlus className="w-8 h-8" />} title="No stakeholders found" description="Get started by adding a stakeholder." action={<button onClick={() => setShowForm(true)} className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100">Add Stakeholder</button>} />
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((stakeholder) => (

@@ -223,3 +223,28 @@ impl StakeholderManagerContract {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::{Env, testutils::Address as _};
+
+    #[test]
+    fn test_register_stakeholder() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, StakeholderManagerContract);
+        let client = StakeholderManagerContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        let stakeholder_addr = Address::generate(&env);
+        let name = String::from_str(&env, "Test Stakeholder");
+        let email = String::from_str(&env, "test@test.com");
+
+        client.register_stakeholder(&stakeholder_addr, &name, &email, &StakeholderRole::Creator);
+        
+        let stakeholder = client.get_stakeholder(&stakeholder_addr);
+        assert_eq!(stakeholder.name, name);
+    }
+}
