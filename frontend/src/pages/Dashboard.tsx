@@ -25,7 +25,7 @@ const Dashboard = () => {
         })
         setActivity((data.recentActivity as ActivityItem[]) ?? [])
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => toast.error(err.message))
       .finally(() => setLoading(false))
   }, [])
 
@@ -47,11 +47,7 @@ const Dashboard = () => {
         <p className="mt-2 text-gray-600">Overview of your royalty distribution platform</p>
       </div>
 
-      {error && (
-        <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" role="alert">
-          {error}
-        </div>
-      )}
+      
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
