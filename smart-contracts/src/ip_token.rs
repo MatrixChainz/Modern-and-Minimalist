@@ -163,3 +163,31 @@ impl IPTokenContract {
         creator_assets
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::{Env, testutils::Address as _};
+
+    #[test]
+    fn test_create_ip_token() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, IPTokenContract);
+        let client = IPTokenContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        client.initialize(&admin);
+
+        let title = String::from_str(&env, "Test IP");
+        let description = String::from_str(&env, "Test Description");
+        let metadata = Map::new(&env);
+        let shares = Vec::new(&env);
+
+        let token_id = client.create_ip_token(&creator, &title, &description, &TokenType::Music, &metadata, &shares);
+        assert_eq!(token_id, String::from_str(&env, "1"));
+        
+        let asset = client.get_ip_asset(&token_id);
+        assert_eq!(asset.title, title);
+    }
+}

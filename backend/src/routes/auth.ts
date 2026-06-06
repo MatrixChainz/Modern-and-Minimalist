@@ -1,3 +1,4 @@
+import rateLimit from 'express-rate-limit'
 import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
@@ -5,6 +6,12 @@ import Joi from 'joi'
 import { prisma } from '../config/database'
 import { validate } from '../middleware/validate'
 import { authenticate, AuthRequest } from '../middleware/auth'
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, error: 'Too many requests, please try again later.' }
+});
 
 const router = Router()
 
@@ -20,7 +27,7 @@ const registerSchema = Joi.object({
   walletAddress: Joi.string().required(),
 })
 
-router.post('/register', validate(registerSchema), async (req: Request, res: Response) => {
+router.post('/register', authLimiter, validate(registerSchema), async (req: Request, res: Response) => {
   try {
     const { name, email, password, walletAddress } = req.body
 
@@ -39,7 +46,7 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
     const token = jwt.sign(
       { userId: creator.id, email: creator.email },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any }
     )
 
     res.status(201).json({ success: true, data: { creator, token } })
@@ -48,7 +55,7 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
   }
 })
 
-router.post('/login', validate(loginSchema), async (req: Request, res: Response) => {
+router.post('/login', authLimiter, validate(loginSchema), async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body
 
@@ -67,7 +74,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     const token = jwt.sign(
       { userId: creator.id, email: creator.email },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any }
     )
 
     res.json({

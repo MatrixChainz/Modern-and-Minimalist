@@ -4,6 +4,7 @@ import { prisma } from '../config/database'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { UsageTrackerService } from '../services/usageTrackerService'
+import crypto from 'crypto'
 
 const router = Router()
 const usageTracker = new UsageTrackerService()
@@ -55,7 +56,26 @@ router.get('/records', authenticate, async (req: AuthRequest, res: Response) => 
 
 router.post('/webhook/:platform', async (req, res: Response) => {
   try {
-    await usageTracker.processWebhook(req.params.platform, req.body as Record<string, unknown>)
+    const platform = req.params.platform;
+    const secret = process.env[`WEBHOOK_SECRET_${platform.toUpperCase()}`];
+    if (secret) {
+      const signature = req.headers['x-hub-signature-256'] || req.headers['x-signature'];
+      if (!signature) {
+        res.status(401).json({ success: false, error: 'Missing webhook signature' });
+        return;
+      }
+      
+      const payload = JSON.stringify(req.body);
+      const hmac = crypto.createHmac('sha256', secret);
+      const digest = 'sha256=' + hmac.update(payload).digest('hex');
+      
+      if (signature !== digest) {
+        res.status(401).json({ success: false, error: 'Invalid webhook signature' });
+        return;
+      }
+    }
+
+    await usageTracker.processWebhook(platform, req.body as Record<string, unknown>)
     res.json({ success: true, message: 'Webhook processed' })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Webhook processing failed'

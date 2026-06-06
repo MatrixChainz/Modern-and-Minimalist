@@ -85,6 +85,9 @@ Frontend (React)     Backend (Node.js)     Smart Contracts (Stellar)
    cp .env.example .env
    # Edit .env with your configuration
    ```
+   cd ../frontend
+   cp .env.example .env
+   # Edit .env if needed
 
 4. **Set up the database**
    ```bash

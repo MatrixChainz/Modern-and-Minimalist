@@ -1,3 +1,4 @@
+import { logger } from '../config/logger';
 import { UsageType } from '@prisma/client'
 import { prisma } from '../config/database'
 import { StellarService } from './stellarService'
@@ -49,7 +50,7 @@ export class UsageTrackerService {
         usageType: data.usageType as UsageType,
         amount: data.amount,
         currency: data.currency,
-        metadata: data.metadata ?? {},
+        metadata: (data.metadata ?? {}) as any,
       },
     })
 
@@ -60,10 +61,10 @@ export class UsageTrackerService {
         usageType: data.usageType,
         amount: data.amount,
         currency: data.currency,
-        metadata: data.metadata ?? {},
+        metadata: (data.metadata ?? {}) as any,
       })
     } catch (err) {
-      console.error('Failed to record usage on blockchain:', err)
+      logger.error('Failed to record usage on blockchain:', err)
     }
 
     await this.triggerRoyaltyDistribution(usageRecord.id)
@@ -149,7 +150,7 @@ export class UsageTrackerService {
     try {
       await this.stellarService.distributeRoyalties(usageRecordId)
     } catch (err) {
-      console.error('Failed to distribute royalties:', err)
+      logger.error('Failed to distribute royalties:', err)
     }
   }
 
