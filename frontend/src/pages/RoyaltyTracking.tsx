@@ -118,8 +118,8 @@ const RoyaltyTracking = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(payment.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.stakeholderId}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.ipAssetId}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.stakeholder?.name || payment.stakeholderId}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.ipAsset?.title || payment.ipAssetId}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     ${payment.amount.toFixed(2)} {payment.currency}
                   </td>
