@@ -1,3 +1,4 @@
+import { logger } from './config/logger';
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -68,14 +69,14 @@ app.use(errorHandler)
 async function start() {
   try {
     await connectRedis()
-    console.log('✅ Redis connected')
+    logger.info('✅ Redis connected')
   } catch (err) {
-    console.error('⚠️  Redis connection failed (non-fatal):', err)
+    logger.error('⚠️  Redis connection failed (non-fatal):', err)
   }
 
   app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`)
-    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`)
+    logger.info(`🚀 Server running on port ${PORT}`)
+    logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`)
   })
 }
 
