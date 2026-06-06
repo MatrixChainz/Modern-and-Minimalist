@@ -39,7 +39,7 @@ router.post('/register', validate(registerSchema), async (req: Request, res: Res
     const token = jwt.sign(
       { userId: creator.id, email: creator.email },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any }
     )
 
     res.status(201).json({ success: true, data: { creator, token } })
@@ -67,7 +67,7 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
     const token = jwt.sign(
       { userId: creator.id, email: creator.email },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any }
     )
 
     res.json({
