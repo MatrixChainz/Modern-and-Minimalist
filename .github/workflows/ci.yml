@@ -1,0 +1,32 @@
+name: CI
+
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Frontend build
+        working-directory: ./frontend
+        run: |
+          npm install
+          npx tsc --noEmit
+      - name: Backend build
+        working-directory: ./backend
+        run: |
+          npm install
+          npx tsc --noEmit
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - name: Smart Contracts check
+        working-directory: ./smart-contracts
+        run: cargo check

@@ -1,3 +1,2 @@
-node_modules
-dist
-smart-contracts/target
+backend/node_modules
+frontend/node_modules

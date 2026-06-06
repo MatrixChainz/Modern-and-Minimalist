@@ -1,3 +1,4 @@
+import { StatsSkeleton, TableSkeleton } from '../components/Skeleton'
 import { useState, useEffect } from 'react'
 import { TrendingUp, Package, Users, DollarSign } from 'lucide-react'
 import { DashboardStats, ActivityItem } from '../types'
@@ -25,7 +26,7 @@ const Dashboard = () => {
         })
         setActivity((data.recentActivity as ActivityItem[]) ?? [])
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => toast.error(err.message))
       .finally(() => setLoading(false))
   }, [])
 
@@ -36,9 +37,7 @@ const Dashboard = () => {
     { title: 'Monthly Growth', value: `${stats.monthlyGrowth}%`, icon: TrendingUp, change: null, changeType: stats.monthlyGrowth >= 0 ? 'positive' : 'negative' as const },
   ]
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
-  }
+  if (loading) return (<><StatsSkeleton count={4} /><div className="mt-6"><TableSkeleton columns={4} /></div></>)
 
   return (
     <div className="space-y-6">
@@ -47,11 +46,7 @@ const Dashboard = () => {
         <p className="mt-2 text-gray-600">Overview of your royalty distribution platform</p>
       </div>
 
-      {error && (
-        <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" role="alert">
-          {error}
-        </div>
-      )}
+      
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">

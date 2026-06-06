@@ -1,11 +1,11 @@
-import { Horizon, Networks, Asset, Operation, TransactionBuilder } from 'stellar-sdk'
+import { Horizon, Server, Networks, Asset, Operation, TransactionBuilder } from 'stellar-sdk'
 
 export class StellarService {
-  private server: Horizon.Server
+  private server: Server
   private networkPassphrase: string
 
   constructor() {
-    this.server = new Horizon.Server('https://horizon-testnet.stellar.org')
+    this.server = new Server('https://horizon-testnet.stellar.org')
     this.networkPassphrase = Networks.TESTNET
   }
 
@@ -97,7 +97,7 @@ export class StellarService {
     const sourceAccount = await this.server.loadAccount(from)
 
     const transaction = new TransactionBuilder(sourceAccount, {
-      fee: await this.server.fetchBaseFee(),
+      fee: String(await this.server.fetchBaseFee()),
       networkPassphrase: this.networkPassphrase,
     })
       .addOperation(Operation.payment({
