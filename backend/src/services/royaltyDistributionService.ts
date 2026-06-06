@@ -1,6 +1,6 @@
 import { prisma } from '../config/database'
 import { StellarService } from './stellarService'
-import { Queue } from 'bull'
+import Bull, { Queue } from 'bull'
 
 interface DistributionStats {
   total: number
@@ -25,7 +25,7 @@ export class RoyaltyDistributionService {
   constructor() {
     this.stellarService = new StellarService()
 
-    this.distributionQueue = new Queue('royalty distribution', {
+    this.distributionQueue = new Bull('royalty distribution', {
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
         port: parseInt(process.env.REDIS_PORT || '6379', 10),
