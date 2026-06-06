@@ -1,7 +1,5 @@
 version: '3.8'
-
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:15
     container_name: royalty-postgres
@@ -10,25 +8,36 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
     ports:
-      - "5432:5432"
+    - 5432:5432
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql
+    - postgres_data:/var/lib/postgresql/data
+    - ./backend/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - royalty-network
-
-  # Redis Cache
+    - royalty-network
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U postgres -d royalty_distribution
+      interval: 5s
+      timeout: 5s
+      retries: 5
   redis:
     image: redis:7-alpine
     container_name: royalty-redis
     ports:
-      - "6379:6379"
+    - 6379:6379
     volumes:
-      - redis_data:/data
+    - redis_data:/data
     networks:
-      - royalty-network
-
-  # Backend API
+    - royalty-network
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 5
   backend:
     build:
       context: ./backend
@@ -41,17 +50,17 @@ services:
       NODE_ENV: development
       PORT: 5000
     ports:
-      - "5000:5000"
+    - 5000:5000
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
-      - ./backend:/app
-      - /app/node_modules
+    - ./backend:/app
+    - /app/node_modules
     networks:
-      - royalty-network
-
-  # Frontend
+    - royalty-network
   frontend:
     build:
       context: ./frontend
@@ -60,35 +69,31 @@ services:
     environment:
       REACT_APP_API_URL: http://localhost:5000/api
     ports:
-      - "3000:3000"
+    - 3000:3000
     depends_on:
-      - backend
+    - backend
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    - ./frontend:/app
+    - /app/node_modules
     networks:
-      - royalty-network
-
-  # Nginx Reverse Proxy
+    - royalty-network
   nginx:
     image: nginx:alpine
     container_name: royalty-nginx
     ports:
-      - "80:80"
-      - "443:443"
+    - 80:80
+    - 443:443
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
+    - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    - ./nginx/ssl:/etc/nginx/ssl
     depends_on:
-      - frontend
-      - backend
+    - frontend
+    - backend
     networks:
-      - royalty-network
-
+    - royalty-network
 volumes:
-  postgres_data:
-  redis_data:
-
+  postgres_data: null
+  redis_data: null
 networks:
   royalty-network:
     driver: bridge
