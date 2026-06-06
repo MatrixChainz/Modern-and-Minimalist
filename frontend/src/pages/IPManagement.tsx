@@ -173,10 +173,12 @@ const IPManagement = () => {
                     <button
                       onClick={() => handleDelete(asset.id)}
                       aria-label={`Delete ${asset.title}`}
+                      title="Delete"
                       className="p-1 hover:bg-gray-100 rounded"
                     >
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
+                    <Link to={`/ip-management/${asset.id}`} className="p-1 hover:bg-gray-100 rounded inline-block" title="View Details"><Eye className="w-4 h-4 text-blue-600" /></Link>
                   </td>
                 </tr>
               ))}
